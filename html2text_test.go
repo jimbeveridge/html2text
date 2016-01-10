@@ -29,7 +29,8 @@ func TestStrippingWhitespace(t *testing.T) {
 		},
 		{
 			"test&nbsp;&nbsp;&nbsp; text&nbsp;",
-			"test    text",
+			// \u00A0 is Unicode Character 'NO-BREAK SPACE'
+			"test\u00A0\u00A0\u00A0 text",
 		},
 	}
 
@@ -173,6 +174,10 @@ func TestLinks(t *testing.T) {
 		{
 			`<a href="http://example.com/">Link</a>`,
 			`Link ( http://example.com/ )`,
+		},
+		{
+			`<a href="http://example.com/">http://example.com/</a>`,
+			`http://example.com/`,
 		},
 		{
 			`<a href="http://example.com/"><span class="a">Link</span></a>`,
@@ -382,7 +387,7 @@ func TestText(t *testing.T) {
 			`hi
 
 			<br>
-	
+
 	hello <a href="https://google.com">google</a>
 	<br><br>
 	test<p>List:</p>
@@ -504,6 +509,7 @@ func Example() {
 			  <ul>
 				  <li>Link 1: <a href="https://example.com">Example.com</a></li>
 				  <li>Link 2: <a href="https://example2.com">Example2.com</a></li>
+				  <li>Link 3: <a href="https://example3.com">https://example3.com</a></li>
 				  <li>Something else</li>
 			  </ul>
 		  </p>
@@ -528,5 +534,6 @@ func Example() {
 	//
 	// * Link 1: Example.com ( https://example.com )
 	// * Link 2: Example2.com ( https://example2.com )
+	// * Link 3: https://example3.com
 	// * Something else
 }

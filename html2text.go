@@ -20,16 +20,25 @@ type textifyTraverseCtx struct {
 	Buf bytes.Buffer
 
 	endsWithSpace bool
+	PreviousNode  *html.Node
+}
+
+func (ctx *textifyTraverseCtx) setPreviousNode(previous *html.Node) {
+	ctx.PreviousNode = previous
 }
 
 func (ctx *textifyTraverseCtx) Traverse(node *html.Node) error {
+
+	defer ctx.setPreviousNode(node)
+
 	switch node.Type {
 
 	default:
 		return ctx.TraverseChildren(node)
 
 	case html.TextNode:
-		data := strings.Trim(spacingRe.ReplaceAllString(node.Data, " "), " ")
+		//data := strings.Trim(spacingRe.ReplaceAllString(node.Data, " "), " ")
+		data := spacingRe.ReplaceAllString(node.Data, " ")
 		return ctx.Emit(data)
 
 	case html.ElementNode:
@@ -37,6 +46,12 @@ func (ctx *textifyTraverseCtx) Traverse(node *html.Node) error {
 		switch node.DataAtom {
 		case atom.Br:
 			return ctx.Emit("\n")
+
+		case atom.Td:
+			if ctx.PreviousNode.DataAtom != atom.Tr {
+				ctx.Emit(" ")
+			}
+			return ctx.TraverseChildren(node)
 
 		case atom.H1, atom.H2, atom.H3:
 			subCtx := textifyTraverseCtx{}
@@ -75,20 +90,32 @@ func (ctx *textifyTraverseCtx) Traverse(node *html.Node) error {
 			return ctx.Emit("\n")
 
 		case atom.A:
+			child := node.FirstChild
+			hasSingleChild := child != nil && child == node.LastChild
+
 			// If image is the only child, take its alt text as the link text
-			if img := node.FirstChild; img != nil && node.LastChild == img && img.DataAtom == atom.Img {
-				if altText := getAttrVal(img, "alt"); altText != "" {
+			if hasSingleChild && child.DataAtom == atom.Img {
+				if altText := getAttrVal(child, "alt"); altText != "" {
 					ctx.Emit(altText)
 				}
 			} else if err := ctx.TraverseChildren(node); err != nil {
 				return err
 			}
 
+			// If there's a single inner text node, then get its text. We do not
+			// want to output the link if it matches the inner text. This is
+			// imperfect - we really want to compare the link to the text that
+			// was output by TraverseChildren(), but it's not easily available.
+			innerText := ""
+			if hasSingleChild && child.Type == html.TextNode {
+				innerText = node.FirstChild.Data
+			}
+
 			hrefLink := ""
 			if attrVal := getAttrVal(node, "href"); attrVal != "" {
 				attrVal = ctx.NormalizeHrefLink(attrVal)
-				if attrVal != "" {
-					hrefLink = "( " + attrVal + " )"
+				if attrVal != "" && attrVal != innerText {
+					hrefLink = " ( " + attrVal + " )"
 				}
 			}
 
@@ -138,10 +165,10 @@ func (ctx *textifyTraverseCtx) Emit(data string) error {
 	}
 
 	runes := []rune(data)
-	startsWithSpace := unicode.IsSpace(runes[0])
-	if !startsWithSpace && !ctx.endsWithSpace {
-		ctx.Buf.WriteByte(' ')
-	}
+	//startsWithSpace := unicode.IsSpace(runes[0])
+	//	if !startsWithSpace && !ctx.endsWithSpace {
+	//		ctx.Buf.WriteByte(' ')
+	//	}
 	ctx.endsWithSpace = unicode.IsSpace(runes[len(runes)-1])
 
 	_, err := ctx.Buf.WriteString(data)
